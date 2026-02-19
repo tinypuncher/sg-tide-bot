@@ -9,8 +9,6 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 import httpx
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
 import numpy as np
 from fastapi import FastAPI, Request, Response, HTTPException
 from fastapi.responses import FileResponse
@@ -517,92 +515,44 @@ fishing_ai = SingaporeFishingAI()
 
 class SingaporeTideVisualizer:
     @staticmethod
-    def create_tide_chart(tide_data: Dict, station_name: str, weather_data: Dict = None) -> str:
-        """Generate Singapore-style tide chart"""
+    def create_tide_table(tide_data: Dict, station_name: str) -> str:
+        """Generate text-based tide table"""
         predictions = tide_data.get("predictions", [])
         tides = tide_data.get("tides", [])
         
         if not predictions:
-            return None
+            return "No tide data available."
         
-        # Parse data
-        times = [datetime.strptime(p["t"], "%Y-%m-%d %H:%M") for p in predictions]
-        heights = [float(p["v"]) for p in predictions]
+        # Build text table
+        text = f"🌊 *Tide Predictions - {station_name}*\n"
+        text += f"🇸🇬 Singapore Standard Time (SGT)\n\n"
         
-        # Create figure with Singapore theme
-        plt.style.use('default')
-        fig, ax = plt.subplots(figsize=(12, 6))
-        fig.patch.set_facecolor('#f0f8ff')
-        ax.set_facecolor('#ffffff')
+        # Group by day
+        current_day = None
+        for p in predictions[::2]:  # Every 2 hours to save space
+            t = datetime.strptime(p["t"], "%Y-%m-%d %H:%M")
+            height = float(p["v"])
+            
+            # New day header
+            if current_day != t.date():
+                current_day = t.date()
+                text += f"\n📅 *{t.strftime('%A, %d %B')}*\n"
+                text += "```\nTime    | Height\n"
+                text += "--------|-------\n"
+            
+            bar = "█" * int(height * 3)  # Simple bar chart
+            text += f"{t.strftime('%H:%M')} | {height:.2f}m {bar}\n"
         
-        # Plot tide curve
-        ax.plot(times, heights, color='#0066b3', linewidth=3, label='Tide Height')
-        ax.fill_between(times, heights, alpha=0.4, color='#4da6ff')
+        text += "```\n\n"  # Close code block
         
-        # Mark high/low tides with Singapore flag colors
-        for tide in tides[:6]:
+        # Add high/low tide summary
+        text += "*Key Times:*\n"
+        for tide in tides[:4]:
             t = datetime.strptime(tide["t"], "%Y-%m-%d %H:%M")
-            h = float(tide["v"])
-            
-            if tide["type"] == "H":
-                color = '#ed2939'  # Singapore red
-                marker = '^'
-                label = 'High'
-            else:
-                color = '#ffffff'  # White
-                edgecolor = '#ed2939'
-                marker = 'v'
-                label = 'Low'
-            
-            ax.scatter([t], [h], c=color, s=150, marker=marker, 
-                      edgecolors='black' if tide["type"] == "L" else 'none',
-                      linewidth=1.5, zorder=5)
-            
-            # Add time label
-            time_str = t.strftime('%H:%M')
-            ax.annotate(f"{label}\n{time_str}\n{h:.2f}m", 
-                       xy=(t, h), 
-                       xytext=(0, 15 if tide["type"] == "H" else -25),
-                       textcoords='offset points', 
-                       ha='center', fontsize=9, fontweight='bold',
-                       bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
+            emoji = "🔺 HIGH" if tide["type"] == "H" else "🔻 LOW"
+            text += f"{emoji}: {t.strftime('%a %H:%M')} ({tide['v']}m)\n"
         
-        # Add day/night shading
-        for i, t in enumerate(times[:-1]):
-            if 6 <= t.hour <= 18:
-                ax.axvspan(t, times[i+1], alpha=0.05, color='yellow')
-            else:
-                ax.axvspan(t, times[i+1], alpha=0.05, color='navy')
-        
-        # Styling
-        ax.set_title(f'🌊 Tide Predictions - {station_name}\nSingapore Waters', 
-                    fontsize=14, fontweight='bold', pad=20, color='#0066b3')
-        ax.set_xlabel('Time (SGT)', fontsize=11, fontweight='bold')
-        ax.set_ylabel('Height (meters above chart datum)', fontsize=11, fontweight='bold')
-        
-        # Format axes
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%a %H:%M'))
-        ax.xaxis.set_major_locator(mdates.HourLocator(interval=6))
-        plt.xticks(rotation=45, ha='right')
-        ax.grid(True, alpha=0.3, linestyle='--')
-        ax.set_ylim(min(heights) - 0.5, max(heights) + 0.5)
-        
-        # Add legend for day/night
-        ax.text(0.02, 0.98, '☀️ Day  🌙 Night', transform=ax.transAxes, 
-               fontsize=9, verticalalignment='top',
-               bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
-        
-        plt.tight_layout()
-        
-        # Save
-        filename = f"/tmp/sg_tide_{station_name.replace(' ', '_')}_{int(datetime.now().timestamp())}.png"
-        plt.savefig(filename, dpi=150, bbox_inches='tight', facecolor='#f0f8ff')
-        plt.close()
-        
-        return filename
-
-visualizer = SingaporeTideVisualizer()
-
+        return text
 # ==========================================
 # Telegram Bot Handlers
 # ==========================================
@@ -749,18 +699,13 @@ async def get_tides(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await loading.edit_text("❌ Error calculating tides.")
             return
         
-        # Generate chart
-        chart_path = visualizer.create_tide_chart(
+                # Generate tide table
+        tide_table = visualizer.create_tide_table(
             tide_data, 
             SG_TIDE_STATIONS[station_key]['name']
         )
         
-        if chart_path:
-            await update.message.reply_photo(
-                photo=open(chart_path, 'rb'),
-                caption=f"🌊 Tide Chart: {SG_TIDE_STATIONS[station_key]['name']}\n🇸🇬 Singapore Standard Time (SGT)"
-            )
-            os.remove(chart_path)
+        await update.message.reply_text(tide_table, parse_mode='Markdown')
         
         # Send tide table
         tides = tide_data.get("tides", [])[:6]
