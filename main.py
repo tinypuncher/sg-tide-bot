@@ -12,7 +12,6 @@ import httpx
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import numpy as np
-import pandas as pd
 from fastapi import FastAPI, Request, Response, HTTPException
 from fastapi.responses import FileResponse
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
