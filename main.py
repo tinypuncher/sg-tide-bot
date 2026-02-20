@@ -28,7 +28,9 @@ load_dotenv()
 
 # Configuration
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL")
+RAILWAY_URL = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+# Or for older Railway versions:
+# RAILWAY_URL = os.getenv("RAILWAY_STATIC_URL")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "singapore-tide-bot-secret")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")  # Optional - free tier available
 
