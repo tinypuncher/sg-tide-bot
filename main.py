@@ -899,5 +899,17 @@ async def webhook(request: Request):
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    import sys
+    
+    # Get port from environment or use 8000
+    port = int(os.getenv("PORT", "8000"))
+    host = "0.0.0.0"
+    
+    print(f"Starting server on {host}:{port}")
+    
+    uvicorn.run(
+        "main:app",
+        host=host,
+        port=port,
+        log_level="info"
+    )
